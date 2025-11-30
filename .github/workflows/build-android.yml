@@ -56,6 +56,10 @@ jobs:
         "$ANDROID_SDK_ROOT/cmdline-tools/latest/bin/sdkmanager" --sdk_root="$ANDROID_SDK_ROOT" "platform-tools" "build-tools;30.0.3" "platforms;android-30"
         ls -la "$ANDROID_SDK_ROOT/build-tools/30.0.3/"
         
+    - name: Create buildozer directory
+      run: |
+        mkdir -p ~/.buildozer
+        
     - name: Build APK
       run: |
         buildozer android debug
