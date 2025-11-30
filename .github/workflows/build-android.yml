@@ -8,68 +8,55 @@ on:
 jobs:
   build:
     runs-on: ubuntu-latest
-    
+
     steps:
     - uses: actions/checkout@v4
-    
+
     - name: Set up Python
       uses: actions/setup-python@v4
       with:
         python-version: '3.9'
 
-    
-        
     - name: Install dependencies
       run: |
         sudo apt-get update
-        # choose the available libtinfo package (libtinfo5 may be missing on newer runners)
-        if apt-cache show libtinfo5 >/dev/null 2>&1; then
-          TINFO_PKG=libtinfo5
-        elif apt-cache show libtinfo6 >/dev/null 2>&1; then
-          TINFO_PKG=libtinfo6
-        else
-          TINFO_PKG=libtinfo-dev
-        fi
-    
-        sudo apt-get install -y --no-install-recommends \
-          openjdk-8-jdk autoconf libtool pkg-config zlib1g-dev \
-          libncurses5-dev libncursesw5-dev "$TINFO_PKG" cmake libffi-dev libssl-dev
-    
+        sudo apt-get install -y \
+          git zip unzip openjdk-8-jdk autoconf libtool pkg-config zlib1g-dev \
+          libncurses5-dev libffi-dev libssl-dev build-essential cmake
         python3 -m pip install --upgrade pip
         pip install buildozer cython
-    
-    - name: Install Android SDK (command-line tools + build-tools)
+
+    - name: Install Android SDK (cmdline-tools + build-tools 30.0.3)
       env:
-        ANDROID_SDK_ROOT: ${{ runner.home }}/.buildozer/android/platform/android-sdk
-        JAVA_HOME: /usr/lib/jvm/java-8-openjdk-amd64
+        ANDROID_SDK_ROOT: $HOME/android-sdk
       run: |
-        set -e
-        export ANDROID_SDK_ROOT="$ANDROID_SDK_ROOT"
-        export JAVA_HOME=/usr/lib/jvm/java-8-openjdk-amd64
-        mkdir -p "$ANDROID_SDK_ROOT"
+        mkdir -p $ANDROID_SDK_ROOT
         cd /tmp
-        wget -q https://dl.google.com/android/repository/commandlinetools-linux-9477386_latest.zip -O cmdline-tools.zip
-        unzip -q cmdline-tools.zip
-        mkdir -p "$ANDROID_SDK_ROOT/cmdline-tools/latest"
-        mv cmdline-tools/* "$ANDROID_SDK_ROOT/cmdline-tools/latest/"
-        yes | "$ANDROID_SDK_ROOT/cmdline-tools/latest/bin/sdkmanager" --sdk_root="$ANDROID_SDK_ROOT" --licenses
-        "$ANDROID_SDK_ROOT/cmdline-tools/latest/bin/sdkmanager" --sdk_root="$ANDROID_SDK_ROOT" "platform-tools" "build-tools;30.0.3" "platforms;android-30"
-        ls -la "$ANDROID_SDK_ROOT/build-tools/30.0.3/"
-        
-    - name: Create buildozer directory
-      run: |
-        mkdir -p ~/.buildozer
-        
+        wget -q https://dl.google.com/android/repository/commandlinetools-linux-9477386_latest.zip -O tools.zip
+        unzip -q tools.zip
+        mkdir -p $ANDROID_SDK_ROOT/cmdline-tools/latest
+        mv cmdline-tools/* $ANDROID_SDK_ROOT/cmdline-tools/latest/
+
+        yes | $ANDROID_SDK_ROOT/cmdline-tools/latest/bin/sdkmanager --sdk_root=$ANDROID_SDK_ROOT --licenses
+
+        $ANDROID_SDK_ROOT/cmdline-tools/latest/bin/sdkmanager --sdk_root=$ANDROID_SDK_ROOT \
+          "platform-tools" \
+          "build-tools;30.0.3" \
+          "platforms;android-30"
+
+    - name: Create Buildozer directory
+      run: mkdir -p $HOME/.buildozer
+
     - name: Build APK
-      run: |
-        export BUILDOZER_BUILD_DIR=$HOME/.buildozer
-        mkdir -p $BUILDOZER_BUILD_DIR
-        buildozer android debug
       env:
-        BUILDOZER_BUILD_DIR: ${{ github.workspace }}/.buildozer
-   
-        
-    - name: Upload APK
+        ANDROIDSDK: $HOME/android-sdk
+        ANDROIDNDK: $HOME/android-sdk/ndk-bundle   # Buildozer will manage this
+        BUILDOZER_HOME: $HOME/.buildozer
+      run: |
+        export PATH=$ANDROIDSDK/platform-tools:$PATH
+        buildozer android debug
+
+    - name: Upload APK Artifact
       uses: actions/upload-artifact@v4
       with:
         name: android-apk
