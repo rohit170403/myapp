@@ -6,106 +6,45 @@ on:
   workflow_dispatch:
 
 jobs:
-  build-android:
+  build:
     runs-on: ubuntu-latest
-    env:
-      # Use a path inside runner.temp to avoid permission issues; Buildozer also uses ~/.buildozer by default.
-      ANDROID_SDK_ROOT: ${{ runner.temp }}/android-sdk
-      ANDROID_HOME: ${{ runner.temp }}/android-sdk
-      BUILD_TOOLS_VERSION: "33.0.2"
-      ANDROID_API_LEVEL: "31"
-      NDK_VERSION: "21.4.7075529"
+    
     steps:
-      - name: Checkout
-        uses: actions/checkout@v4
+    - uses: actions/checkout@v4
+    
+    - name: Set up Python
+      uses: actions/setup-python@v4
+      with:
+        python-version: '3.9'
 
-      - name: Setup Java (required for Android builds)
-        uses: actions/setup-java@v4
-        with:
-          distribution: temurin
-          java-version: '11'
-
-      - name: Install system packages
-        run: |
-          sudo apt-get update
-          sudo apt-get install -y unzip zip wget build-essential python3-venv python3-pip
-
-      - name: Create Android SDK directories
-        run: |
-          mkdir -p "$ANDROID_SDK_ROOT/cmdline-tools"
-          mkdir -p "$HOME/.buildozer"
-
-      - name: Download Android commandline tools
-        run: |
-          cd $HOME
-          # specific commandline tools archive (update URL if a newer revision is needed)
-          curl -fsSL -o commandlinetools.zip https://dl.google.com/android/repository/commandlinetools-linux-9477386_latest.zip
-          unzip -q commandlinetools.zip -d "$ANDROID_SDK_ROOT/cmdline-tools"
-          # Move into 'latest' so sdkmanager path becomes .../cmdline-tools/latest
-          mkdir -p "$ANDROID_SDK_ROOT/cmdline-tools/latest"
-          mv "$ANDROID_SDK_ROOT/cmdline-tools/cmdline-tools/"* "$ANDROID_SDK_ROOT/cmdline-tools/latest/" || true
-
-      - name: Add Android SDK tools to PATH
-        run: |
-          echo "$ANDROID_SDK_ROOT/cmdline-tools/latest/bin" >> $GITHUB_PATH
-          echo "$ANDROID_SDK_ROOT/platform-tools" >> $GITHUB_PATH
-          echo "$ANDROID_SDK_ROOT/build-tools/$BUILD_TOOLS_VERSION" >> $GITHUB_PATH
-
-      - name: Accept licenses and install SDK packages (platform-tools, platform, build-tools, ndk)
-        run: |
-          # Ensure sdkmanager is available
-          sdkmanager --version
-          # Accept all licenses non-interactively
-          yes | sdkmanager --sdk_root="$ANDROID_SDK_ROOT" --licenses || true
-          # Install required packages
-          sdkmanager --sdk_root="$ANDROID_SDK_ROOT" "platform-tools" "platforms;android-$ANDROID_API_LEVEL" "build-tools;$BUILD_TOOLS_VERSION" "ndk;$NDK_VERSION"
-
-      - name: Verify aidl is installed
-        run: |
-          AIDL_PATH="$ANDROID_SDK_ROOT/build-tools/$BUILD_TOOLS_VERSION/aidl"
-          echo "Checking for aidl at: $AIDL_PATH"
-          if [ -x "$AIDL_PATH" ]; then
-            echo "aidl found: $AIDL_PATH"
-          else
-            echo "ERROR: aidl not found at $AIDL_PATH"
-            ls -la "$ANDROID_SDK_ROOT/build-tools" || true
-            exit 1
-          fi
-
-      - name: Setup Python and install Buildozer & deps
-        run: |
-          python3 -m pip install --upgrade pip setuptools wheel
-          # Pin versions if you need reproducible builds; adjust as needed
-          python3 -m pip install cython==0.29.36 buildozer==1.4.6
-        env:
-          PIP_NO_CACHE_DIR: "false"
-
-      - name: Prepare Buildozer config (optional)
-        # If you need to tweak buildozer.spec or other files at runtime, do it here.
-        run: |
-          # Copy buildozer config to expected location if needed, or leave as-is.
-          ls -la
-
-      - name: Run Buildozer (Android debug)
-        run: |
-          # Move to repo root (already there). Ensure buildozer uses the same SDK root.
-          export ANDROIDSDK="$ANDROID_SDK_ROOT"
-          export ANDROID_HOME="$ANDROID_SDK_ROOT"
-          export ANDROID_NDK_HOME="$ANDROID_SDK_ROOT/ndk/$NDK_VERSION"
-          # If you keep build artifacts in the repo, consider cleaning first: buildozer android clean
-          buildozer -v android debug
-        env:
-          # Ensure buildozer sees the SDK path during execution
-          ANDROIDSDK: ${{ env.ANDROID_SDK_ROOT }}
-          ANDROID_HOME: ${{ env.ANDROID_SDK_ROOT }}
-          ANDROID_NDK_HOME: ${{ env.ANDROID_SDK_ROOT }}/ndk/${{ env.NDK_VERSION }}
-
-      - name: Upload APK artifact
-        uses: actions/upload-artifact@v4
-        with:
-          name: android-apk
-          # Buildozer puts .apk in bin/ or bin/<app>-debug.apk; adjust if your project places it elsewhere
-          path: |
-            bin/*.apk
-            bin/**/release/*.apk
-            bin/**/debug/*.apk
+    
+        
+    - name: Install dependencies
+      run: |
+        sudo apt-get update
+        # choose the available libtinfo package (libtinfo5 may be missing on newer runners)
+        if apt-cache show libtinfo5 >/dev/null 2>&1; then
+          TINFO_PKG=libtinfo5
+        elif apt-cache show libtinfo6 >/dev/null 2>&1; then
+          TINFO_PKG=libtinfo6
+        else
+          TINFO_PKG=libtinfo-dev
+        fi
+    
+        sudo apt-get install -y --no-install-recommends \
+          openjdk-8-jdk autoconf libtool pkg-config zlib1g-dev \
+          libncurses5-dev libncursesw5-dev "$TINFO_PKG" cmake libffi-dev libssl-dev
+    
+        python3 -m pip install --upgrade pip
+        pip install buildozer cython
+        
+        
+    - name: Build APK
+      run: |
+        buildozer android debug
+        
+    - name: Upload APK
+      uses: actions/upload-artifact@v4
+      with:
+        name: android-apk
+        path: bin/*.apk
