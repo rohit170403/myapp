@@ -62,7 +62,12 @@ jobs:
         
     - name: Build APK
       run: |
+        export BUILDOZER_BUILD_DIR=$HOME/.buildozer
+        mkdir -p $BUILDOZER_BUILD_DIR
         buildozer android debug
+      env:
+        BUILDOZER_BUILD_DIR: ${{ github.workspace }}/.buildozer
+   
         
     - name: Upload APK
       uses: actions/upload-artifact@v4
