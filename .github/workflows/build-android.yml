@@ -26,28 +26,31 @@ jobs:
         python3 -m pip install --upgrade pip
         pip install buildozer cython
 
-    - name: Install Android SDK (FIXED cmdline-tools layout)
+    - name: Install Android SDK (Correct Layout FIX)
       env:
         ANDROID_SDK_ROOT: $HOME/android-sdk
       run: |
         mkdir -p $ANDROID_SDK_ROOT
         cd /tmp
 
-        # Download correct cmdline-tools
-        wget -q https://dl.google.com/android/repository/commandlinetools-linux-11076708_latest.zip -O tools.zip
+        # USE THE MOST STABLE WORKING VERSION
+        wget -q https://dl.google.com/android/repository/commandlinetools-linux-10406996_latest.zip -O tools.zip
         unzip -q tools.zip
 
-        # Create proper folder structure
-        mkdir -p $ANDROID_SDK_ROOT/cmdline-tools/latest
-        mv cmdline-tools/* $ANDROID_SDK_ROOT/cmdline-tools/latest/
+        # FIX FOLDER STRUCTURE **THIS IS IMPORTANT**
+        mkdir -p $ANDROID_SDK_ROOT/cmdline-tools
+        mv cmdline-tools $ANDROID_SDK_ROOT/cmdline-tools/latest
+
+        # verify real structure
+        ls -R $ANDROID_SDK_ROOT/cmdline-tools/
 
         # Accept licenses
         yes | $ANDROID_SDK_ROOT/cmdline-tools/latest/bin/sdkmanager --sdk_root=$ANDROID_SDK_ROOT --licenses
 
-        # Install required components
+        # Install required SDK components
         $ANDROID_SDK_ROOT/cmdline-tools/latest/bin/sdkmanager --sdk_root=$ANDROID_SDK_ROOT \
           "platform-tools" \
-          "build-tools;33.0.0" \
+          "build-tools;33.0.2" \
           "platforms;android-33"
 
     - name: Build APK
@@ -55,8 +58,8 @@ jobs:
         ANDROIDSDK: $HOME/android-sdk
         BUILDOZER_HOME: $HOME/.buildozer
       run: |
-        export PATH=$ANDROIDSDK/platform-tools:$PATH
         mkdir -p $HOME/.buildozer
+        export PATH=$ANDROIDSDK/platform-tools:$PATH
         buildozer android debug
 
     - name: Upload APK
