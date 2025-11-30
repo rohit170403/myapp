@@ -16,12 +16,28 @@ jobs:
       uses: actions/setup-python@v4
       with:
         python-version: '3.9'
+
+    
         
     - name: Install dependencies
       run: |
         sudo apt-get update
-        sudo apt-get install -y openjdk-8-jdk autoconf libtool pkg-config zlib1g-dev libncurses5-dev libncursesw5-dev libtinfo5 cmake libffi-dev libssl-dev
+        # choose the available libtinfo package (libtinfo5 may be missing on newer runners)
+        if apt-cache show libtinfo5 >/dev/null 2>&1; then
+          TINFO_PKG=libtinfo5
+        elif apt-cache show libtinfo6 >/dev/null 2>&1; then
+          TINFO_PKG=libtinfo6
+        else
+          TINFO_PKG=libtinfo-dev
+        fi
+    
+        sudo apt-get install -y --no-install-recommends \
+          openjdk-8-jdk autoconf libtool pkg-config zlib1g-dev \
+          libncurses5-dev libncursesw5-dev "$TINFO_PKG" cmake libffi-dev libssl-dev
+    
+        python3 -m pip install --upgrade pip
         pip install buildozer cython
+        
         
     - name: Build APK
       run: |
